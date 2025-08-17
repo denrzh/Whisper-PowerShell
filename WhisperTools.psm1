@@ -71,7 +71,7 @@ function Install-AudioToTxt {
         throw "winget is not available. Install App Installer from Microsoft Store, then re-run."
     }
 
-    # 1) Install Python (user-scope)
+    # Install Python (user-scope)
     Write-Host "Installing Python via winget (user scope): $PythonId ..."
     $args = @("install","-e","--id=$PythonId") + $script:WingetCommon.Split(" ")
     $process = Start-Process -FilePath "winget" -ArgumentList $args -NoNewWindow -Wait -PassThru
@@ -79,7 +79,6 @@ function Install-AudioToTxt {
         Write-Warning "winget returned code $($process.ExitCode). Continuing if Python is already present in PATH..."
     }
 
-    # Prefer "py" launcher if present, otherwise "python"
     $pythonLaunchers = @("py","python")
     $py = $null
     foreach ($cand in $pythonLaunchers) {
@@ -87,7 +86,7 @@ function Install-AudioToTxt {
     }
     if (-not $py) { throw "Python launcher not found in PATH after install. Restart PowerShell and try again." }
 
-    # 2) Create venv in user profile
+    # Create venv in user profile
     if (-not (Test-Path $script:VenvPath)) {
         Write-Host "Creating venv in $script:VenvPath ..."
         & $py -m venv $script:VenvPath
@@ -100,11 +99,11 @@ function Install-AudioToTxt {
     $python = Join-Path $script:VenvPath "Scripts\python.exe"
     if (-not (Test-Path $pip)) { throw "pip not found in venv. Venv may be corrupted." }
 
-    # 3) Upgrade pip/wheel/setuptools
+    # Upgrade pip/wheel/setuptools
     & $python -m pip install --upgrade pip wheel setuptools
     if ($LASTEXITCODE -ne 0) { throw "Failed to upgrade pip/wheel/setuptools." }
 
-    # 4) Install CPU Torch and Whisper
+    # Install CPU Torch and Whisper
     Write-Host "Installing Torch (CPU) ..."
     & $pip install torch --index-url https://download.pytorch.org/whl/cpu
     if ($LASTEXITCODE -ne 0) { throw "Failed to install torch (cpu)." }
@@ -113,7 +112,6 @@ function Install-AudioToTxt {
     & $pip install -U openai-whisper
     if ($LASTEXITCODE -ne 0) { throw "Failed to install openai-whisper." }
 
-    # 5) Create models cache folder (optional)
     if (-not (Test-Path $script:ModelsCache)) { New-Item -ItemType Directory -Path $script:ModelsCache -Force | Out-Null }
 
     Write-Host "AudioText environment is ready." -ForegroundColor Green
@@ -127,7 +125,6 @@ function Convert-VideoToAudio {
     )
 
     function Find-Ffmpeg {
-        # Try PATH first
         if (Test-CommandAvailable -Name "ffmpeg") { return "ffmpeg" }
 
         # Expect ffmpeg in the WinGet path
@@ -160,11 +157,11 @@ function Convert-AudioToTxt {
         [Parameter(Mandatory)][string]$InputFile,
         [string]$Output,
         [ValidateSet("tiny","base","small","medium","large-v3")]
-        [string]$Model = "medium",
-        [string]$Language = "ru",
-        [int]$Threads,
+        [string]$Model = "small",
+        [string]$Language = "en",
+        [int]$Threads = 0,
         [ValidateSet("txt", "srt", "vtt")]
-        [string]$Format = "txt"
+        [string]$Format = "srt"
     )
 
     # Ensure venv + whisper exist
@@ -173,18 +170,24 @@ function Convert-AudioToTxt {
     }
     if (-not (Test-Path $InputFile)) { throw "Input not found: $InputFile" }
 
-    # Determine output file
     if (-not $Output) {
         $inputDir = [System.IO.Path]::GetDirectoryName($InputFile)
         $base = [System.IO.Path]::GetFileNameWithoutExtension($InputFile)
         $Output = Join-Path $inputDir "$base.$Format"
     }
 
-    # Whisper always names output by input base; we will rename to user-specified file after.
-    $inBaseName = [System.IO.Path]::GetFileNameWithoutExtension($InputFile)
-    $workDir = $inputDir
+    $workDir = [System.IO.Path]::GetDirectoryName($Output)
 
-    # Build arguments
+    # Set default threads to the number of logical processors if not provided
+    if (-not $Threads -or $Threads -le 0) {
+        $Threads = [Environment]::ProcessorCount
+        Write-Host "Defaulting to $Threads threads based on logical processors." -ForegroundColor Yellow
+    }
+
+    # Set environment variable for threading
+    [Environment]::SetEnvironmentVariable("OMP_NUM_THREADS", $Threads, [EnvironmentVariableTarget]::Process)
+    Write-Host "Set OMP_NUM_THREADS to $Threads for optimal CPU utilization." -ForegroundColor Yellow
+
     $args = @(
         $InputFile,
         "--model", $Model,
@@ -201,6 +204,11 @@ function Convert-AudioToTxt {
     & $script:WhisperExe @args
     if ($LASTEXITCODE -ne 0) { throw "Whisper transcribe failed." }
 
+    $generatedFile = Join-Path $workDir "$( [System.IO.Path]::GetFileNameWithoutExtension($InputFile) ).$Format"
+    if (Test-Path $generatedFile) {
+        Rename-Item -Path $generatedFile -NewName ( [System.IO.Path]::GetFileName($Output) )
+    }
+
     Write-Host "Transcript written: $Output" -ForegroundColor Green
 }
 
@@ -210,22 +218,25 @@ function Convert-VideoToTxt {
         [Parameter(Mandatory)][string]$InputFile,
         [string]$Output,
         [ValidateSet("tiny","base","small","medium","large-v3")]
-        [string]$Model = "medium",
-        [string]$Language = "ru",
-        [int]$Threads,
+        [string]$Model = "small",
+        [string]$Language = "en",
+        [int]$Threads = 0,
         [ValidateSet("txt", "srt", "vtt")]
-        [string]$Format = "txt"
+        [string]$Format = "srt"
     )
 
-    # Step 1: Convert video to audio
+    if (-not $Output) {
+        $inputDir = [System.IO.Path]::GetDirectoryName($InputFile)
+        $base = [System.IO.Path]::GetFileNameWithoutExtension($InputFile)
+        $Output = Join-Path $inputDir "$base.$Format"
+    }
+
     $tempAudioFile = [System.IO.Path]::GetTempFileName() + ".wav"
     try {
         Convert-VideoToAudio -InputFile $InputFile -Output $tempAudioFile
 
-        # Step 2: Transcribe audio to text
         Convert-AudioToTxt -InputFile $tempAudioFile -Output $Output -Model $Model -Language $Language -Threads $Threads -Format $Format
     } finally {
-        # Clean up temporary audio file
         if (Test-Path $tempAudioFile) {
             Remove-Item -Path $tempAudioFile -Force
         }

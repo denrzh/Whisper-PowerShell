@@ -47,10 +47,10 @@ Transcribes an audio file to text.
 **Parameters:**
 - `-InputFile` (Mandatory): Path to the input audio file.
 - `-Output` (Optional): Path to the output text file. Defaults to the same directory as the input file with a `.txt` extension.
-- `-Model` (Optional): Whisper model to use. Options: `tiny`, `base`, `small`, `medium`, `large-v3`. Default: `medium`.
-- `-Language` (Optional): Language code for transcription. Default: `ru`.
+- `-Model` (Optional): Whisper model to use. Options: `tiny`, `base`, `small`, `medium`, `large-v3`. Default: `small`.
+- `-Language` (Optional): Language code for transcription. Default: `en`. For a full list refer to [Whisper API documentation](https://whisper-api.com/docs/languages/?).
 - `-Threads` (Optional): Number of threads to use.
-- `-Format` (Optional): Output format. Options: `txt`, `srt`, `vtt`. Default: `txt`.
+- `-Format` (Optional): Output format. Options: `txt`, `srt`, `vtt`. Default: `srt`.
 
 **Example:**
 ```powershell
@@ -64,13 +64,13 @@ Combines video-to-audio conversion and transcription in a single step.
 - `-InputFile` (Mandatory): Path to the input video file.
 - `-Output` (Optional): Path to the output text file. Defaults to the same directory as the input file with a `.txt` extension.
 - `-Model` (Optional): Whisper model to use. Options: `tiny`, `base`, `small`, `medium`, `large-v3`. Default: `medium`.
-- `-Language` (Optional): Language code for transcription. Default: `ru`.
+- `-Language` (Optional): Language code for transcription. Default: `en`.
 - `-Threads` (Optional): Number of threads to use.
-- `-Format` (Optional): Output format. Options: `txt`, `srt`, `vtt`. Default: `txt`.
+- `-Format` (Optional): Output format. Options: `txt`, `srt`, `vtt`. Default: `srt`.
 
 **Example:**
 ```powershell
-Convert-VideoToTxt -InputFile 'C:\path\to\video.mp4' -Format 'srt'
+Convert-VideoToTxt -InputFile 'C:\path\to\video.mp4' -Format 'txt'
 ```
 
 ## Notes
