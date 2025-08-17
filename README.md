@@ -54,7 +54,7 @@ Transcribes an audio file to text.
 
 **Example:**
 ```powershell
-Convert-AudioToTxt -InputFile 'C:\path\to\audio.wav' -Format 'srt'
+Convert-AudioToTxt -InputFile 'C:\path\to\audio.wav' -Language ru -Format 'srt'
 ```
 
 #### 3. `Convert-VideoToTxt`
@@ -70,7 +70,7 @@ Combines video-to-audio conversion and transcription in a single step.
 
 **Example:**
 ```powershell
-Convert-VideoToTxt -InputFile 'C:\path\to\video.mp4' -Format 'txt'
+Convert-VideoToTxt -InputFile 'C:\path\to\video.mp4' -Language ru -Format 'txt'
 ```
 
 ## Notes
